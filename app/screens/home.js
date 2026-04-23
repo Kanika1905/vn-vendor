@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, RefreshControl, TextInput,
+  ActivityIndicator, Alert, RefreshControl, TextInput, ScrollView,
 } from "react-native";
 import { COLORS, FONTS, CONFIG } from "../constants";
 
@@ -10,6 +10,9 @@ export default function Home({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
+
+  const categories = ["All", "Fruits", "Vegetables", "Grocery", "Dairy", "Snacks and Beverages", "Household Supplies"];
 
   const fetchProducts = async () => {
     try {
@@ -55,10 +58,12 @@ export default function Home({ navigation }) {
     }
   };
 
-  const filtered = products.filter((p) =>
-    p.name?.toLowerCase().includes(search.toLowerCase()) ||
-    p.wholesalerId?.businessName?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = products.filter((p) => {
+    const matchesSearch = p.name?.toLowerCase().includes(search.toLowerCase()) ||
+      p.wholesalerId?.businessName?.toLowerCase().includes(search.toLowerCase());
+    const matchesCategory = selectedCategory === "All" || p.categoryId?.name === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   const renderItem = ({ item }) => (
     <View style={styles.card}>
@@ -70,6 +75,7 @@ export default function Home({ navigation }) {
         <Text style={styles.price}>₹{item.price}</Text>
       </View>
       <Text style={styles.productName}>{item.name}</Text>
+      <Text style={styles.category}>{item.categoryId?.name || "Category"}</Text>
       <Text style={styles.unit}>{item.quantity} {item.unit}</Text>
       {item.description ? (
         <Text style={styles.description}>{item.description}</Text>
@@ -86,7 +92,7 @@ export default function Home({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Products</Text>
+        <Text style={styles.headerTitle}>Vendornest</Text>
         <TouchableOpacity onPress={() => navigation.navigate("profile")}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>P</Text>
@@ -101,6 +107,33 @@ export default function Home({ navigation }) {
         value={search}
         onChangeText={setSearch}
       />
+
+      {/* ── CATEGORIES SCROLL ── */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.categoriesScroll}
+      >
+        {categories.map((cat) => (
+          <TouchableOpacity
+            key={cat}
+            style={[
+              styles.categoryChip,
+              selectedCategory === cat && styles.categoryChipActive,
+            ]}
+            onPress={() => setSelectedCategory(cat)}
+          >
+            <Text
+              style={[
+                styles.categoryChipText,
+                selectedCategory === cat && styles.categoryChipTextActive,
+              ]}
+            >
+              {cat}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       {loading ? (
         <ActivityIndicator color={COLORS.primary} style={{ marginTop: 40 }} />
@@ -141,7 +174,8 @@ const styles = StyleSheet.create({
   },
   avatarText: { color: COLORS.white, fontWeight: "700" },
   search: {
-    margin: 16, backgroundColor: COLORS.white,
+    marginHorizontal: 16, marginVertical: 8, backgroundColor: COLORS.white, marginTop: 16,
+    marginBottom: 4,
     borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11,
     fontSize: FONTS.sizes.md, color: COLORS.textPrimary,
     borderWidth: 1, borderColor: COLORS.border,
@@ -151,11 +185,13 @@ const styles = StyleSheet.create({
     marginBottom: 12, borderRadius: 12, padding: 16,
     borderWidth: 1, borderColor: COLORS.lightGray,
     shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, elevation: 2,
+    marginTop:8,
   },
   cardHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
   businessName: { fontSize: FONTS.sizes.sm, color: COLORS.primary, fontWeight: "600" },
   price: { fontSize: FONTS.sizes.lg, fontWeight: "700", color: COLORS.textPrimary },
   productName: { fontSize: FONTS.sizes.lg, fontWeight: "600", color: COLORS.textPrimary, marginBottom: 2 },
+  category: { fontSize: FONTS.sizes.xs || 11, fontWeight: "700", color: COLORS.primary, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 },
   unit: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, marginBottom: 4 },
   description: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, marginBottom: 10 },
   orderBtn: {
@@ -164,4 +200,22 @@ const styles = StyleSheet.create({
   },
   orderBtnText: { color: COLORS.white, fontWeight: "600", fontSize: FONTS.sizes.md },
   empty: { textAlign: "center", marginTop: 60, color: COLORS.gray, fontSize: FONTS.sizes.md },
+  categoriesScroll: { paddingHorizontal: 16, paddingTop: 4 },
+  categoryChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,   // 👈 KEY: reduce height
+    borderRadius: 20,     // pill shape
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.white,
+    alignItems: "center",
+    justifyContent: "center",
+    height: 32,           // 👈 FIX HEIGHT (important)
+  },
+  categoryChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  categoryChipText: {
+    fontSize: 12,
+    color: COLORS.textPrimary,
+    fontWeight: "600",
+  }, categoryChipTextActive: { color: COLORS.white },
 });
