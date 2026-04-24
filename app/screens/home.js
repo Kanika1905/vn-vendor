@@ -1,13 +1,56 @@
 import React, { useEffect, useState, useContext } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Alert, RefreshControl, TextInput, ScrollView, Modal,
+  ActivityIndicator, Alert, RefreshControl, TextInput,
+  ScrollView, Modal, Image,
 } from "react-native";
 import { COLORS, FONTS, CONFIG } from "../constants";
 import { AuthContext } from "../context/authContext";
 
+// ─── Small Product Card ───────────────────────────────────────────────
+function ProductCard({ item, onOrder }) {
+  const hasImage = item.images && item.images.length > 0;
+
+  return (
+    <View style={styles.card}>
+      {/* Image Area */}
+      <View style={styles.imgWrap}>
+        {hasImage ? (
+          <Image
+            source={{ uri: item.images[0] }}
+            style={styles.productImg}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.imgPlaceholder}>
+            <Text style={styles.imgPlaceholderText}>📦</Text>
+          </View>
+        )}
+        {/* + Button */}
+        <TouchableOpacity style={styles.plusBtn} onPress={() => onOrder(item)}>
+          <Text style={styles.plusIcon}>+</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Info */}
+      <View style={styles.cardInfo}>
+        <View style={styles.priceRow}>
+          <View style={styles.priceBadge}>
+            <Text style={styles.priceText}>₹{item.price}</Text>
+          </View>
+        </View>
+        <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
+        <Text style={styles.qtyText} numberOfLines={1}>
+          {item.quantity} {item.unit}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────
 export default function Home({ navigation }) {
-  const { token, user } = useContext(AuthContext); // ✅ add user
+  const { token, user } = useContext(AuthContext);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -17,9 +60,12 @@ export default function Home({ navigation }) {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [quantity, setQuantity] = useState("1");
   const [ordering, setOrdering] = useState(false);
-  const [orderConfirmed, setOrderConfirmed] = useState(false); // ✅
+  const [orderConfirmed, setOrderConfirmed] = useState(false);
 
-  const categories = ["All", "Fruits", "Vegetables", "Grocery", "Dairy", "Snacks and Beverages", "Household Supplies"];
+  const categories = [
+    "All", "Fruits", "Vegetables", "Grocery",
+    "Dairy", "Snacks and Beverages", "Household Supplies",
+  ];
 
   const fetchProducts = async () => {
     try {
@@ -27,7 +73,7 @@ export default function Home({ navigation }) {
       const data = await res.json();
       if (res.ok) setProducts(data.products || []);
       else Alert.alert("Error", data.message || "Failed to load products");
-    } catch (err) {
+    } catch {
       Alert.alert("Error", "Could not load products");
     } finally {
       setLoading(false);
@@ -40,7 +86,7 @@ export default function Home({ navigation }) {
   const handleOrder = (product) => {
     setSelectedProduct(product);
     setQuantity("1");
-    setOrderConfirmed(false); // ✅ reset on each new order
+    setOrderConfirmed(false);
     setModalVisible(true);
   };
 
@@ -63,11 +109,8 @@ export default function Home({ navigation }) {
         }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setOrderConfirmed(true); // ✅ show success view
-      } else {
-        Alert.alert("Error", data.message || "Order failed");
-      }
+      if (res.ok) setOrderConfirmed(true);
+      else Alert.alert("Error", data.message || "Order failed");
     } catch {
       Alert.alert("Error", "Network error");
     } finally {
@@ -84,31 +127,16 @@ export default function Home({ navigation }) {
     return matchesSearch && matchesCategory;
   });
 
+  // Render 3-column grid using FlatList with numColumns
   const renderItem = ({ item }) => (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.businessName}>
-          {item.wholesalerId?.businessName || "Wholesaler"}
-        </Text>
-        <Text style={styles.price}>₹{item.price}</Text>
-      </View>
-      <Text style={styles.productName}>{item.name}</Text>
-      <Text style={styles.category}>{item.categoryId?.name || "Category"}</Text>
-      <Text style={styles.unit}>{item.quantity} {item.unit}</Text>
-      {item.description ? (
-        <Text style={styles.description}>{item.description}</Text>
-      ) : null}
-      <TouchableOpacity style={styles.orderBtn} onPress={() => handleOrder(item)}>
-        <Text style={styles.orderBtnText}>Order Now</Text>
-      </TouchableOpacity>
-    </View>
+    <ProductCard item={item} onOrder={handleOrder} />
   );
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Vendornest</Text>
-        // Home.js — update avatar press
         <TouchableOpacity onPress={() => navigation.navigate("profile")}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
@@ -118,6 +146,7 @@ export default function Home({ navigation }) {
         </TouchableOpacity>
       </View>
 
+      {/* Search */}
       <TextInput
         style={styles.search}
         placeholder="Search products or wholesaler..."
@@ -126,10 +155,12 @@ export default function Home({ navigation }) {
         onChangeText={setSearch}
       />
 
+      {/* Category chips */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.categoriesScroll}
+        style={{ flexGrow: 0, flexShrink: 0 }}   // ← add this style prop
       >
         {categories.map((cat) => (
           <TouchableOpacity
@@ -137,13 +168,17 @@ export default function Home({ navigation }) {
             style={[styles.categoryChip, selectedCategory === cat && styles.categoryChipActive]}
             onPress={() => setSelectedCategory(cat)}
           >
-            <Text style={[styles.categoryChipText, selectedCategory === cat && styles.categoryChipTextActive]}>
+            <Text style={[
+              styles.categoryChipText,
+              selectedCategory === cat && styles.categoryChipTextActive,
+            ]}>
               {cat}
             </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
+      {/* Grid */}
       {loading ? (
         <ActivityIndicator color={COLORS.primary} style={{ marginTop: 40 }} />
       ) : (
@@ -151,30 +186,30 @@ export default function Home({ navigation }) {
           data={filtered}
           keyExtractor={(item) => item._id}
           renderItem={renderItem}
-          contentContainerStyle={{ paddingBottom: 30 }}
+          numColumns={3}                          // ← 3-column grid
+          columnWrapperStyle={styles.row}
+          contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => { setRefreshing(true); fetchProducts(); }}
             />
           }
-          ListEmptyComponent={<Text style={styles.empty}>No products found</Text>}
+          ListEmptyComponent={
+            <Text style={styles.empty}>No products found</Text>
+          }
         />
       )}
 
-      {/* ✅ Modal with success screen */}
+      {/* Modal */}
       <Modal
         visible={modalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => {
-          setModalVisible(false);
-          setOrderConfirmed(false);
-        }}
+        onRequestClose={() => { setModalVisible(false); setOrderConfirmed(false); }}
       >
         <View style={styles.modalOverlay}>
           {orderConfirmed ? (
-            // ✅ SUCCESS SCREEN
             <View style={styles.modalBox}>
               <View style={styles.successCircle}>
                 <Text style={styles.successTick}>✓</Text>
@@ -182,11 +217,8 @@ export default function Home({ navigation }) {
               <Text style={styles.successTitle}>Order Placed!</Text>
               <Text style={styles.successSubtitle}>
                 Your order for{" "}
-                <Text style={{ fontWeight: "700", color: COLORS.textPrimary }}>
-                  {selectedProduct?.name}
-                </Text>{" "}
-                has been placed successfully.{"\n"}
-                The wholesaler will deliver to your address.
+                <Text style={{ fontWeight: "700" }}>{selectedProduct?.name}</Text>{" "}
+                has been placed.{"\n"}Wholesaler will deliver to your address.
               </Text>
               <Text style={styles.successMeta}>
                 {quantity} unit{Number(quantity) > 1 ? "s" : ""}{"  •  "}
@@ -194,16 +226,12 @@ export default function Home({ navigation }) {
               </Text>
               <TouchableOpacity
                 style={styles.doneBtn}
-                onPress={() => {
-                  setModalVisible(false);
-                  setOrderConfirmed(false);
-                }}
+                onPress={() => { setModalVisible(false); setOrderConfirmed(false); }}
               >
                 <Text style={styles.doneBtnText}>Done</Text>
               </TouchableOpacity>
             </View>
           ) : (
-            // ✅ QUANTITY INPUT SCREEN
             <View style={styles.modalBox}>
               <Text style={styles.modalTitle}>Enter Quantity</Text>
               <Text style={styles.modalSubtitle}>
@@ -222,22 +250,13 @@ export default function Home({ navigation }) {
                 Total: ₹{(Number(quantity) || 0) * (selectedProduct?.price || 0)}
               </Text>
               <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  onPress={() => setModalVisible(false)}
-                >
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
                   <Text style={styles.cancelBtnText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.confirmBtn}
-                  onPress={confirmOrder}
-                  disabled={ordering}
-                >
-                  {ordering ? (
-                    <ActivityIndicator color={COLORS.white} />
-                  ) : (
-                    <Text style={styles.confirmBtnText}>Confirm</Text>
-                  )}
+                <TouchableOpacity style={styles.confirmBtn} onPress={confirmOrder} disabled={ordering}>
+                  {ordering
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={styles.confirmBtnText}>Confirm</Text>}
                 </TouchableOpacity>
               </View>
             </View>
@@ -248,106 +267,132 @@ export default function Home({ navigation }) {
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────
+const CARD_SIZE = "31%"; // ~3 per row with gaps
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, backgroundColor: "#F5F5F0" },
+
   header: {
-    flexDirection: "row", justifyContent: "space-between",
-    alignItems: "center", paddingHorizontal: 20,
-    paddingTop: 56, paddingBottom: 16,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1, borderBottomColor: COLORS.lightGray,
+    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
+    paddingHorizontal: 16, paddingTop: 52, paddingBottom: 14,
+    backgroundColor: "#fff", borderBottomWidth: 0.5, borderBottomColor: "#e0e0e0",
   },
-  headerTitle: { fontSize: FONTS.sizes.xxl, fontWeight: "700", color: COLORS.textPrimary },
+  headerTitle: { fontSize: 20, fontWeight: "700", color: "#111" },
   avatar: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 34, height: 34, borderRadius: 17,
     backgroundColor: COLORS.primary, justifyContent: "center", alignItems: "center",
   },
-  avatarText: { color: COLORS.white, fontWeight: "700" },
+  avatarText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+
   search: {
-    marginHorizontal: 16, marginTop: 16, marginBottom: 4,
-    backgroundColor: COLORS.white, borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 11,
-    fontSize: FONTS.sizes.md, color: COLORS.textPrimary,
-    borderWidth: 1, borderColor: COLORS.border,
+    marginHorizontal: 12, marginTop: 12, marginBottom: 4,
+    backgroundColor: "#fff", borderRadius: 10,
+    paddingHorizontal: 12, paddingVertical: 9,
+    fontSize: 13, color: "#111",
+    borderWidth: 0.5, borderColor: "#ddd",
   },
-  card: {
-    backgroundColor: COLORS.cardBg, marginHorizontal: 16,
-    marginBottom: 12, borderRadius: 12, padding: 16,
-    borderWidth: 1, borderColor: COLORS.lightGray,
-    shadowColor: "#000", shadowOpacity: 0.04, shadowRadius: 4, elevation: 2, marginTop: 8,
+
+  categoriesScroll: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 6,
+    flexGrow: 0,      // ← prevents ScrollView from stretching
   },
-  cardHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
-  businessName: { fontSize: FONTS.sizes.sm, color: COLORS.primary, fontWeight: "600" },
-  price: { fontSize: FONTS.sizes.lg, fontWeight: "700", color: COLORS.textPrimary },
-  productName: { fontSize: FONTS.sizes.lg, fontWeight: "600", color: COLORS.textPrimary, marginBottom: 2 },
-  category: { fontSize: 11, fontWeight: "700", color: COLORS.primary, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 },
-  unit: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, marginBottom: 4 },
-  description: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, marginBottom: 10 },
-  orderBtn: {
-    backgroundColor: COLORS.primary, borderRadius: 8,
-    paddingVertical: 10, alignItems: "center", marginTop: 8,
-  },
-  orderBtnText: { color: COLORS.white, fontWeight: "600", fontSize: FONTS.sizes.md },
-  empty: { textAlign: "center", marginTop: 60, color: COLORS.gray, fontSize: FONTS.sizes.md },
-  categoriesScroll: { paddingHorizontal: 16, paddingTop: 4 },
   categoryChip: {
-    paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20,
-    borderWidth: 1, borderColor: COLORS.border,
-    backgroundColor: COLORS.white, alignItems: "center", justifyContent: "center", height: 32,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 0.5,
+    borderColor: "#ddd",
+    backgroundColor: "#fff",
+    height: 30,           // ← add explicit height
+    justifyContent: "center",
   },
   categoryChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  categoryChipText: { fontSize: 12, color: COLORS.textPrimary, fontWeight: "600" },
-  categoryChipTextActive: { color: COLORS.white },
+  categoryChipText: { fontSize: 12, color: "#555", fontWeight: "600" },
+  categoryChipTextActive: { color: "#fff" },
+
+  listContent: { paddingHorizontal: 10, paddingBottom: 30, paddingTop: 4 },
+  row: { justifyContent: "space-between", marginBottom: 10 },
+
+  // ── Small Card ──
+  card: {
+    width: CARD_SIZE,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 0.5,
+    borderColor: "#e8e8e8",
+  },
+  imgWrap: {
+    width: "100%",
+    aspectRatio: 1,
+    backgroundColor: "#f0f0f0",
+    position: "relative",
+  },
+  productImg: { width: "100%", height: "100%" },
+  imgPlaceholder: {
+    flex: 1, alignItems: "center", justifyContent: "center",
+    backgroundColor: "#edf7ed",
+  },
+  imgPlaceholderText: { fontSize: 30 },
+
+  plusBtn: {
+    position: "absolute", bottom: 6, right: 6,
+    width: 28, height: 28, borderRadius: 7,
+    backgroundColor: "#fff",
+    borderWidth: 1.5, borderColor: "#E0115F",
+    alignItems: "center", justifyContent: "center",
+  },
+  plusIcon: { color: "#E0115F", fontSize: 18, fontWeight: "700", lineHeight: 20 },
+
+  cardInfo: { padding: 7 },
+  priceRow: { flexDirection: "row", alignItems: "center", marginBottom: 3 },
+  priceBadge: {
+    backgroundColor: "#2E7D32", borderRadius: 5,
+    paddingHorizontal: 6, paddingVertical: 2,
+  },
+  priceText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  productName: { fontSize: 12, fontWeight: "600", color: "#111", marginBottom: 2, lineHeight: 16 },
+  qtyText: { fontSize: 11, color: "#888" },
+
+  empty: { textAlign: "center", marginTop: 60, color: "#999", fontSize: 14 },
+
+  // ── Modal ──
   modalOverlay: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center", alignItems: "center",
   },
-  modalBox: {
-    backgroundColor: COLORS.white, borderRadius: 16, padding: 24, width: "85%",
-  },
-  modalTitle: { fontSize: FONTS.sizes.xl, fontWeight: "700", color: COLORS.textPrimary, marginBottom: 4 },
-  modalSubtitle: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, marginBottom: 16 },
+  modalBox: { backgroundColor: "#fff", borderRadius: 18, padding: 24, width: "85%" },
+  modalTitle: { fontSize: 18, fontWeight: "700", color: "#111", marginBottom: 4 },
+  modalSubtitle: { fontSize: 13, color: "#666", marginBottom: 16 },
   modalInput: {
-    borderWidth: 1, borderColor: COLORS.border, borderRadius: 10,
+    borderWidth: 0.5, borderColor: "#ddd", borderRadius: 10,
     paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: FONTS.sizes.lg, color: COLORS.textPrimary, marginBottom: 8,
+    fontSize: 16, color: "#111", marginBottom: 8,
   },
-  modalTotal: { fontSize: FONTS.sizes.md, fontWeight: "700", color: COLORS.primary, marginBottom: 20 },
+  modalTotal: { fontSize: 15, fontWeight: "700", color: COLORS.primary, marginBottom: 20 },
   modalActions: { flexDirection: "row", gap: 10 },
   cancelBtn: {
-    flex: 1, borderWidth: 1, borderColor: COLORS.border,
+    flex: 1, borderWidth: 0.5, borderColor: "#ddd",
     borderRadius: 10, paddingVertical: 12, alignItems: "center",
   },
-  cancelBtnText: { fontSize: FONTS.sizes.md, color: COLORS.textSecondary, fontWeight: "600" },
+  cancelBtnText: { fontSize: 14, color: "#666", fontWeight: "600" },
   confirmBtn: {
     flex: 1, backgroundColor: COLORS.primary,
     borderRadius: 10, paddingVertical: 12, alignItems: "center",
   },
-  confirmBtnText: { color: COLORS.white, fontSize: FONTS.sizes.md, fontWeight: "600" },
+  confirmBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
 
-  // ✅ Success styles
   successCircle: {
-    width: 80, height: 80, borderRadius: 40,
-    backgroundColor: "#10B981",
-    justifyContent: "center", alignItems: "center",
-    alignSelf: "center", marginBottom: 20,
+    width: 72, height: 72, borderRadius: 36, backgroundColor: "#10B981",
+    justifyContent: "center", alignItems: "center", alignSelf: "center", marginBottom: 16,
   },
-  successTick: { color: "#fff", fontSize: 40, fontWeight: "700" },
-  successTitle: {
-    fontSize: FONTS.sizes.xxl, fontWeight: "700",
-    color: COLORS.textPrimary, textAlign: "center", marginBottom: 10,
-  },
-  successSubtitle: {
-    fontSize: FONTS.sizes.sm, color: COLORS.textSecondary,
-    textAlign: "center", lineHeight: 22, marginBottom: 12,
-  },
-  successMeta: {
-    fontSize: FONTS.sizes.md, fontWeight: "700",
-    color: COLORS.primary, textAlign: "center", marginBottom: 24,
-  },
-  doneBtn: {
-    backgroundColor: "#10B981", borderRadius: 10,
-    paddingVertical: 14, alignItems: "center",
-  },
-  doneBtnText: { color: "#fff", fontSize: FONTS.sizes.md, fontWeight: "600" },
+  successTick: { color: "#fff", fontSize: 36, fontWeight: "700" },
+  successTitle: { fontSize: 20, fontWeight: "700", color: "#111", textAlign: "center", marginBottom: 8 },
+  successSubtitle: { fontSize: 13, color: "#666", textAlign: "center", lineHeight: 20, marginBottom: 10 },
+  successMeta: { fontSize: 14, fontWeight: "700", color: COLORS.primary, textAlign: "center", marginBottom: 20 },
+  doneBtn: { backgroundColor: "#10B981", borderRadius: 10, paddingVertical: 13, alignItems: "center" },
+  doneBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
 });
