@@ -51,10 +51,14 @@ export default function Profile({ navigation }) {
     }
   };
 
+  // Profile.js — update handleLogout
   const handleLogout = () => {
     Alert.alert("Logout", "Are you sure?", [
       { text: "Cancel", style: "cancel" },
-      { text: "Logout", style: "destructive", onPress: () => { logout(); navigation.replace("login"); } },
+      {
+        text: "Logout", style: "destructive",
+        onPress: () => logout(), // ✅ just call logout — navigator auto-switches to login
+      },
     ]);
   };
 

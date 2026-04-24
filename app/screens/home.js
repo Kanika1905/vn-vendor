@@ -7,7 +7,7 @@ import { COLORS, FONTS, CONFIG } from "../constants";
 import { AuthContext } from "../context/authContext";
 
 export default function Home({ navigation }) {
-  const { token } = useContext(AuthContext);
+  const { token, user } = useContext(AuthContext); // ✅ add user
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -108,9 +108,12 @@ export default function Home({ navigation }) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Vendornest</Text>
+        // Home.js — update avatar press
         <TouchableOpacity onPress={() => navigation.navigate("profile")}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>P</Text>
+            <Text style={styles.avatarText}>
+              {user?.businessName?.[0]?.toUpperCase() || "V"}
+            </Text>
           </View>
         </TouchableOpacity>
       </View>
