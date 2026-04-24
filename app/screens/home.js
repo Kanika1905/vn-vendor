@@ -6,7 +6,7 @@ import {
 } from "react-native";
 import { COLORS, FONTS, CONFIG } from "../constants";
 import { AuthContext } from "../context/authContext";
-import { useCart } from "../context/cartContext"; 
+import { useCart } from "../context/cartContext";
 // ─── Small Product Card ───────────────────────────────────────────────
 function ProductCard({ item, onAddToCart }) {
   const hasImage = item.images && item.images.length > 0;
@@ -61,7 +61,7 @@ export default function Home({ navigation }) {
   const [quantity, setQuantity] = useState("1");
   const [ordering, setOrdering] = useState(false);
   const [orderConfirmed, setOrderConfirmed] = useState(false);
-  const { addToCart, totalItems } = useCart(); 
+  const { addToCart, totalItems } = useCart();
 
   const categories = [
     "All", "Fruits", "Vegetables", "Grocery",
@@ -270,9 +270,9 @@ export default function Home({ navigation }) {
           onPress={() => navigation.navigate("Cart")}
         >
           <Text style={styles.cartFabIcon}>🛒</Text>
-          <Text style={styles.cartFabText}>{totalItems} item{totalItems > 1 ? "s" : ""}</Text>
-          <View style={styles.cartBadge}>
-            <Text style={styles.cartBadgeText}>{totalItems}</Text>
+          <View style={styles.cartFabTextBlock}>
+            <Text style={styles.cartFabTitle}>Cart</Text>
+            <Text style={styles.cartFabSub}>{totalItems} item{totalItems > 1 ? "s" : ""}</Text>
           </View>
         </TouchableOpacity>
       )}
@@ -423,6 +423,18 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.2,
     shadowRadius: 8,
+  },
+  cartFabTitle: {
+    color: "#fff",        // already white ✓
+    fontWeight: "700",
+    fontSize: 14,
+    lineHeight: 17,
+  },
+  cartFabSub: {
+    color: "#fff",        // change from "rgba(255,255,255,0.85)" to "#fff"
+    fontSize: 11,
+    fontWeight: "500",
+    lineHeight: 14,
   },
   cartFabIcon: { fontSize: 16 },
   cartFabText: { color: "#fff", fontWeight: "700", fontSize: 14 },

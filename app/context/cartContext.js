@@ -1,10 +1,29 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const CART_STORAGE_KEY = "@vendornest_cart";
 
 export const CartContext = createContext();
 
 export function CartProvider({ children }) {
   const [cartItems, setCartItems] = useState([]);
-  // cartItems = [{ product, quantity }, ...]
+  const [hydrated, setHydrated] = useState(false);
+
+  // Load cart from storage on mount
+  useEffect(() => {
+    AsyncStorage.getItem(CART_STORAGE_KEY)
+      .then((json) => {
+        if (json) setCartItems(JSON.parse(json));
+      })
+      .catch(() => {})
+      .finally(() => setHydrated(true));
+  }, []);
+
+  // Save cart to storage whenever it changes (skip before hydration)
+  useEffect(() => {
+    if (!hydrated) return;
+    AsyncStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartItems)).catch(() => {});
+  }, [cartItems, hydrated]);
 
   const addToCart = (product) => {
     setCartItems((prev) => {
@@ -47,6 +66,7 @@ export function CartProvider({ children }) {
     <CartContext.Provider value={{
       cartItems, addToCart, removeFromCart,
       updateQuantity, clearCart, totalItems, totalPrice,
+      hydrated, // optional: lets screens wait before rendering
     }}>
       {children}
     </CartContext.Provider>
