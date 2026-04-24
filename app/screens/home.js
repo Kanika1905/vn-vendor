@@ -517,4 +517,12 @@ const styles = StyleSheet.create({
   cartFabTextBlock: { flexDirection: "column" },
   cartFabTitle: { color: "#fff", fontWeight: "700", fontSize: 14, lineHeight: 17 },
   cartFabSub: { color: "#fff", fontSize: 11, fontWeight: "500", lineHeight: 14 },
+
+  tabBarLabelStyle: {
+    fontSize: 10,
+    allowFontScaling: false,
+  },
+  tabBarItemStyle: {
+    paddingBottom: 4,
+  },
 });

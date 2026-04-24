@@ -21,7 +21,7 @@
 //   "Content-Type": "application/json",
 // };
 const CONFIG = {
-  BASE_URL: "http://10.171.227.5:5000/api", // 🔁 Change to your local IP
+  BASE_URL: "http://192.168.0.102:5000/api", // 🔁 Change to your local IP
 };
 
 export default CONFIG;
