@@ -5,6 +5,7 @@ import { AuthProvider, AuthContext } from "./app/context/authContext";
 import AppNavigator from "./app/navigation/appNavigator";
 import { View, ActivityIndicator } from "react-native";
 import { COLORS } from "./app/constants";
+import { CartProvider } from "./app/context/cartContext";
 
 function RootNavigator() {
   const { loading } = useContext(AuthContext); // ✅ just use loading from context
@@ -23,11 +24,12 @@ function RootNavigator() {
 function App() {
   return (
     <AuthProvider>
-      <NavigationContainer>
-        <RootNavigator />
-      </NavigationContainer>
+      <CartProvider>
+        <NavigationContainer>
+          <RootNavigator />
+        </NavigationContainer>
+      </CartProvider>
     </AuthProvider>
   );
 }
-
 registerRootComponent(App);

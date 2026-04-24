@@ -6,9 +6,9 @@ import {
 } from "react-native";
 import { COLORS, FONTS, CONFIG } from "../constants";
 import { AuthContext } from "../context/authContext";
-
+import { useCart } from "../context/cartContext"; 
 // ─── Small Product Card ───────────────────────────────────────────────
-function ProductCard({ item, onOrder }) {
+function ProductCard({ item, onAddToCart }) {
   const hasImage = item.images && item.images.length > 0;
 
   return (
@@ -27,7 +27,7 @@ function ProductCard({ item, onOrder }) {
           </View>
         )}
         {/* + Button */}
-        <TouchableOpacity style={styles.plusBtn} onPress={() => onOrder(item)}>
+        <TouchableOpacity style={styles.plusBtn} onPress={() => onAddToCart(item)}>
           <Text style={styles.plusIcon}>+</Text>
         </TouchableOpacity>
       </View>
@@ -61,6 +61,7 @@ export default function Home({ navigation }) {
   const [quantity, setQuantity] = useState("1");
   const [ordering, setOrdering] = useState(false);
   const [orderConfirmed, setOrderConfirmed] = useState(false);
+  const { addToCart, totalItems } = useCart(); 
 
   const categories = [
     "All", "Fruits", "Vegetables", "Grocery",
@@ -129,7 +130,7 @@ export default function Home({ navigation }) {
 
   // Render 3-column grid using FlatList with numColumns
   const renderItem = ({ item }) => (
-    <ProductCard item={item} onOrder={handleOrder} />
+    <ProductCard item={item} onAddToCart={addToCart} />
   );
 
   return (
@@ -263,6 +264,18 @@ export default function Home({ navigation }) {
           )}
         </View>
       </Modal>
+      {totalItems > 0 && (
+        <TouchableOpacity
+          style={styles.cartFab}
+          onPress={() => navigation.navigate("Cart")}
+        >
+          <Text style={styles.cartFabIcon}>🛒</Text>
+          <Text style={styles.cartFabText}>{totalItems} item{totalItems > 1 ? "s" : ""}</Text>
+          <View style={styles.cartBadge}>
+            <Text style={styles.cartBadgeText}>{totalItems}</Text>
+          </View>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -395,4 +408,29 @@ const styles = StyleSheet.create({
   successMeta: { fontSize: 14, fontWeight: "700", color: COLORS.primary, textAlign: "center", marginBottom: 20 },
   doneBtn: { backgroundColor: "#10B981", borderRadius: 10, paddingVertical: 13, alignItems: "center" },
   doneBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  cartFab: {
+    position: "absolute",
+    bottom: 16,               // sits just above tab bar
+    right: 16,
+    backgroundColor: COLORS.primary,
+    borderRadius: 30,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  cartFabIcon: { fontSize: 16 },
+  cartFabText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  cartBadge: {
+    backgroundColor: "#E0115F",
+    borderRadius: 10,
+    width: 20, height: 20,
+    alignItems: "center", justifyContent: "center",
+  },
+  cartBadgeText: { color: "#fff", fontSize: 11, fontWeight: "700" },
 });

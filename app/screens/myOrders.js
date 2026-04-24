@@ -1,9 +1,10 @@
 // app/screens/myOrders.js
-import React, { useEffect, useState, useContext } from "react";
+import React, { useState, useContext, useCallback } from "react";
 import {
-  View, Text, FlatList, TouchableOpacity,
-  StyleSheet, ActivityIndicator, Alert, RefreshControl,
+  View, Text, FlatList, StyleSheet,
+  ActivityIndicator, Alert, RefreshControl, Image,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { COLORS, FONTS, CONFIG } from "../constants";
 import { AuthContext } from "../context/authContext";
 
@@ -37,46 +38,49 @@ export default function MyOrders() {
     }
   };
 
-  useEffect(() => { fetchOrders(); }, []);
+  // Refetch every time this tab is focused
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchOrders();
+    }, [])
+  );
 
   const renderOrder = ({ item }) => {
     const status = STATUS_CONFIG[item.status] || STATUS_CONFIG.pending;
+    const hasImage = item.product?.images?.[0];
+
     return (
-      <View style={styles.card}>
-        <View style={styles.cardTop}>
-          <View style={styles.cardTopLeft}>
-            <Text style={styles.productName}>{item.product?.name}</Text>
-            <Text style={styles.wholesalerName}>
-              🏪 {item.wholesaler?.businessName || "Wholesaler"}
-            </Text>
+      <View style={styles.row}>
+        {/* Thumbnail — same as cart */}
+        {hasImage ? (
+          <Image source={{ uri: item.product.images[0] }} style={styles.thumb} resizeMode="cover" />
+        ) : (
+          <View style={[styles.thumb, styles.thumbPlaceholder]}>
+            <Text style={{ fontSize: 24 }}>📦</Text>
           </View>
+        )}
+
+        {/* Info */}
+        <View style={styles.info}>
+          <Text style={styles.name} numberOfLines={1}>{item.product?.name}</Text>
+          <Text style={styles.wholesaler}>
+            🏪 {item.wholesaler?.businessName || "Wholesaler"}
+          </Text>
+          <Text style={styles.unit}>{item.quantity} units</Text>
+          <Text style={styles.price}>₹{item.totalPrice}</Text>
+        </View>
+
+        {/* Right side — status + date */}
+        <View style={styles.rightCol}>
           <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
             <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
           </View>
-        </View>
-
-        <View style={styles.divider} />
-
-        <View style={styles.cardBottom}>
-          <View style={styles.metaItem}>
-            <Text style={styles.metaLabel}>Qty</Text>
-            <Text style={styles.metaValue}>{item.quantity} units</Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Text style={styles.metaLabel}>Total</Text>
-            <Text style={[styles.metaValue, { color: COLORS.primary }]}>₹{item.totalPrice}</Text>
-          </View>
-          <View style={styles.metaItem}>
-            <Text style={styles.metaLabel}>Date</Text>
-            <Text style={styles.metaValue}>
-              {new Date(item.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.addressRow}>
-          <Text style={styles.addressIcon}>📍</Text>
-          <Text style={styles.addressText}>{item.deliveryAddress}</Text>
+          <Text style={styles.date}>
+            {new Date(item.createdAt).toLocaleDateString("en-IN", {
+              day: "numeric", month: "short",
+            })}
+          </Text>
         </View>
       </View>
     );
@@ -92,21 +96,30 @@ export default function MyOrders() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Orders</Text>
-        <Text style={styles.headerSub}>{orders.length} order{orders.length !== 1 ? "s" : ""}</Text>
+        <Text style={styles.headerSub}>
+          {orders.length} order{orders.length !== 1 ? "s" : ""}
+        </Text>
       </View>
+
       <FlatList
         data={orders}
         keyExtractor={(item) => item._id}
         renderItem={renderOrder}
         contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchOrders(); }} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); fetchOrders(); }}
+          />
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyIcon}>📦</Text>
             <Text style={styles.emptyTitle}>No orders yet</Text>
-            <Text style={styles.emptySubtitle}>Your orders will appear here once you place them</Text>
+            <Text style={styles.emptySubtitle}>
+              Your orders will appear here once you place them
+            </Text>
           </View>
         }
       />
@@ -115,38 +128,43 @@ export default function MyOrders() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
+  container: { flex: 1, backgroundColor: "#F5F5F0" },
   centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+
   header: {
     paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1, borderBottomColor: COLORS.lightGray,
+    backgroundColor: "#fff",
+    borderBottomWidth: 0.5, borderBottomColor: "#e0e0e0",
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end",
   },
-  headerTitle: { fontSize: FONTS.sizes.xxl, fontWeight: "700", color: COLORS.textPrimary },
-  headerSub: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, fontWeight: "500" },
-  card: {
-    backgroundColor: COLORS.white, borderRadius: 16, marginBottom: 12,
-    padding: 16, elevation: 2,
-    shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8,
-    borderWidth: 1, borderColor: COLORS.lightGray,
+  headerTitle: { fontSize: 22, fontWeight: "700", color: "#111" },
+  headerSub: { fontSize: 13, color: "#888", fontWeight: "500" },
+
+  // Cart-style row card
+  row: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: "#fff", borderRadius: 12, padding: 12, gap: 12,
+    borderWidth: 0.5, borderColor: "#e8e8e8",
   },
-  cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-  cardTopLeft: { flex: 1, marginRight: 10 },
-  productName: { fontSize: FONTS.sizes.lg, fontWeight: "700", color: COLORS.textPrimary, marginBottom: 4 },
-  wholesalerName: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary },
+  thumb: { width: 64, height: 64, borderRadius: 10 },
+  thumbPlaceholder: {
+    backgroundColor: "#edf7ed", alignItems: "center", justifyContent: "center",
+  },
+  info: { flex: 1 },
+  name: { fontSize: 14, fontWeight: "600", color: "#111", marginBottom: 2 },
+  wholesaler: { fontSize: 12, color: "#888", marginBottom: 2 },
+  unit: { fontSize: 12, color: "#888", marginBottom: 4 },
+  price: { fontSize: 15, fontWeight: "700", color: "#2E7D32" },
+
+  rightCol: { alignItems: "flex-end", gap: 8 },
   statusBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
   statusText: { fontSize: 11, fontWeight: "700" },
-  divider: { height: 1, backgroundColor: COLORS.lightGray, marginVertical: 12 },
-  cardBottom: { flexDirection: "row", justifyContent: "space-between" },
-  metaItem: { alignItems: "center" },
-  metaLabel: { fontSize: 11, color: COLORS.textSecondary, fontWeight: "500", marginBottom: 2 },
-  metaValue: { fontSize: FONTS.sizes.sm, fontWeight: "700", color: COLORS.textPrimary },
-  addressRow: { flexDirection: "row", alignItems: "flex-start", marginTop: 12 },
-  addressIcon: { fontSize: 12, marginRight: 4, marginTop: 1 },
-  addressText: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, flex: 1 },
+  date: { fontSize: 11, color: "#aaa", fontWeight: "500" },
+
   emptyContainer: { alignItems: "center", marginTop: 80 },
   emptyIcon: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: { fontSize: FONTS.sizes.lg, fontWeight: "700", color: COLORS.textPrimary, marginBottom: 6 },
-  emptySubtitle: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, textAlign: "center", paddingHorizontal: 40 },
+  emptyTitle: { fontSize: 16, fontWeight: "700", color: "#111", marginBottom: 6 },
+  emptySubtitle: {
+    fontSize: 13, color: "#888", textAlign: "center", paddingHorizontal: 40,
+  },
 });

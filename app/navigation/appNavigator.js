@@ -27,6 +27,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { AuthContext } from "../context/authContext";
 import { COLORS, FONTS } from "../constants";
+import Cart from "../screens/cart";
 
 import Login from "../screens/login";
 import Home from "../screens/home";
@@ -92,9 +93,13 @@ export default function AppNavigator() {
   const { token } = useContext(AuthContext);
 
   return (
+    // AFTER — correct
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       {token ? (
-        <Stack.Screen name="vendorTabs" component={VendorTabs} />
+        [
+          <Stack.Screen key="tabs" name="vendorTabs" component={VendorTabs} />,
+          <Stack.Screen key="cart" name="Cart" component={Cart} />,
+        ]
       ) : (
         <Stack.Screen name="login" component={Login} />
       )}
