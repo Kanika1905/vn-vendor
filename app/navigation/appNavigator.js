@@ -19,3 +19,4 @@ export default function AppNavigator() {
     </Stack.Navigator>
   );
 }
+// app/navigation/appNavigator.js

@@ -19,6 +19,12 @@ export default function Profile({ navigation }) {
     }
     setLoading(true);
     try {
+      console.log("=== PROFILE SAVE DEBUG ===");
+      console.log("token:", token);
+      console.log("businessName:", businessName);
+      console.log("address:", address);
+      console.log("url:", `${CONFIG.BASE_URL}/vendor/profile`);
+
       const res = await fetch(`${CONFIG.BASE_URL}/vendor/profile`, {
         method: "PUT",
         headers: {
@@ -28,13 +34,17 @@ export default function Profile({ navigation }) {
         body: JSON.stringify({ businessName, address }),
       });
       const data = await res.json();
+      console.log("response status:", res.status);
+      console.log("response data:", JSON.stringify(data));
+
       if (res.ok) {
         updateUser(data.vendor);
         Alert.alert("Success", "Profile updated!");
       } else {
         Alert.alert("Error", data.message || "Update failed");
       }
-    } catch {
+    } catch (err) {
+      console.log("Save error:", err);
       Alert.alert("Error", "Network error");
     } finally {
       setLoading(false);

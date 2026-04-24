@@ -26,15 +26,14 @@ export default function Login({ navigation }) {
       const data = await res.json();
 
       if (res.ok) {
-        // store vendorId as token since backend doesn't return token yet
-        login(data.vendorId, { _id: data.vendorId, phone, isVerified: data.isVerified });
+        await login(data.token, data.vendor); // ✅ saves real JWT token
         navigation.replace("home");
       } else {
         Alert.alert("Error", data.message || "Login failed");
       }
     } catch (err) {
       console.log("Login error:", err);
-      Alert.alert("Error", "Network error — check your IP in config.js and make sure backend is running");
+      Alert.alert("Error", "Network error");
     } finally {
       setLoading(false);
     }
