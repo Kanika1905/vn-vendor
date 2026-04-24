@@ -28,11 +28,12 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { AuthContext } from "../context/authContext";
 import { COLORS, FONTS } from "../constants";
 import Cart from "../screens/cart";
-
+import CategoryProducts from "../screens/categoryProducts";
 import Login from "../screens/login";
 import Home from "../screens/home";
 import Profile from "../screens/profile";
 import MyOrders from "../screens/myOrders";
+import Categories from "../screens/categories";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -67,6 +68,14 @@ function VendorTabs() {
         }}
       />
       <Tab.Screen
+        name="categories"
+        component={Categories}
+        options={{
+          tabBarLabel: "Categories",
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 20 }}>⊞</Text>,
+        }}
+      />
+      <Tab.Screen
         name="myOrders"
         component={MyOrders}
         options={{
@@ -74,6 +83,11 @@ function VendorTabs() {
             <TabIcon emoji="📦" label="Orders" focused={focused} />
           ),
         }}
+      />
+      <Stack.Screen
+        name="categoryProducts"
+        component={CategoryProducts}
+        options={{ headerShown: false }}
       />
       <Tab.Screen
         name="profile"
