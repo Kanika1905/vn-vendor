@@ -11,6 +11,7 @@ import Home from "../screens/home";
 import Profile from "../screens/profile";
 import MyOrders from "../screens/myOrders";
 import Categories from "../screens/categories";
+import TrackOrder from "../screens/trackOrder";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -186,6 +187,7 @@ export default function AppNavigator() {
           <Stack.Screen name="vendorTabs" component={VendorTabs} />
           <Stack.Screen name="Cart" component={Cart} />
           <Stack.Screen name="categoryProducts" component={CategoryProducts} />
+          <Stack.Screen name="trackOrder" component={TrackOrder} />
         </>
       ) : (
         <Stack.Screen name="login" component={Login} />
@@ -211,13 +213,13 @@ const tabStyles = StyleSheet.create({
     justifyContent: "center",
     paddingTop: 8,
     gap: 4,
-    width: 72,          // ← fixed width prevents wrapping
+    width: 72,
   },
   label: {
     fontSize: 10,
     fontWeight: "600",
     marginTop: 2,
     textAlign: "center",
-    numberOfLines: 1,   // ← won't work in StyleSheet, use on <Text> directly
+    numberOfLines: 1,
   },
 });
