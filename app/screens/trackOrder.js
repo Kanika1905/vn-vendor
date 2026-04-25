@@ -16,9 +16,9 @@ const STEPS = [
   },
   {
     key: "accepted",
-    label: "Confirmed",
+    label: "Shipped",
     icon: "✅",
-    description: "Wholesaler has confirmed your order",
+    description: "Your order had been Shipped",
   },
   {
     key: "out_for_delivery",
