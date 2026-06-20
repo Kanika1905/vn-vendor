@@ -11,6 +11,12 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
+      },
+      "package": "com.kanika19.vnvendor"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "3aea9b2b-6f97-440b-9a51-514a4b7d9386"
       }
     }
   }

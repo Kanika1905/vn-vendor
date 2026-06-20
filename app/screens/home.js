@@ -7,6 +7,7 @@ import {
 import { COLORS, CONFIG } from "../constants";
 import { AuthContext } from "../context/authContext";
 import { useCart } from "../context/cartContext";
+import RazorpayCheckout from "react-native-razorpay";
 
 // ─── Product Card ─────────────────────────────────────────────────────
 function ProductCard({ item, onAddToCart }) {
@@ -104,27 +105,101 @@ export default function Home({ navigation, route }) {
     if (filterCategory) setSelectedCategory(filterCategory);
   }, [route?.params?.filterCategory]);
 
+  // const confirmOrder = async () => {
+  //   if (!quantity || isNaN(quantity) || Number(quantity) < 1) {
+  //     Alert.alert("Error", "Please enter a valid quantity");
+  //     return;
+  //   }
+  //   setOrdering(true);
+  //   try {
+  //     const res = await fetch(`${CONFIG.BASE_URL}/vendor/orders`, {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+  //       body: JSON.stringify({ productId: selectedProduct._id, quantity: Number(quantity) }),
+  //     });
+  //     const data = await res.json();
+  //     if (res.ok) setOrderConfirmed(true);
+  //     else Alert.alert("Error", data.message || "Order failed");
+  //   } catch {
+  //     Alert.alert("Error", "Network error");
+  //   } finally {
+  //     setOrdering(false);
+  //   }
+  // };
+
   const confirmOrder = async () => {
-    if (!quantity || isNaN(quantity) || Number(quantity) < 1) {
-      Alert.alert("Error", "Please enter a valid quantity");
+  if (!quantity || isNaN(quantity) || Number(quantity) < 1) {
+    Alert.alert("Error", "Please enter a valid quantity");
+    return;
+  }
+  setOrdering(true);
+  try {
+    // 1. Create the order in your DB (status: pending, paymentStatus: unpaid)
+    const res = await fetch(`${CONFIG.BASE_URL}/vendor/orders`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ productId: selectedProduct._id, quantity: Number(quantity) }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      Alert.alert("Error", data.message || "Order failed");
       return;
     }
-    setOrdering(true);
-    try {
-      const res = await fetch(`${CONFIG.BASE_URL}/vendor/orders`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ productId: selectedProduct._id, quantity: Number(quantity) }),
-      });
-      const data = await res.json();
-      if (res.ok) setOrderConfirmed(true);
-      else Alert.alert("Error", data.message || "Order failed");
-    } catch {
-      Alert.alert("Error", "Network error");
-    } finally {
-      setOrdering(false);
+
+    const order = data.order;
+    const totalAmount = order.totalPrice;
+
+    // 2. Ask backend to create a Razorpay order for this amount
+    const payRes = await fetch(`${CONFIG.BASE_URL}/payment/create-order`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ amount: totalAmount }),
+    });
+    const payData = await payRes.json();
+    if (!payRes.ok) {
+      Alert.alert("Error", "Could not start payment");
+      return;
     }
-  };
+
+    // 3. Open Razorpay checkout
+    const options = {
+      key: "rzp_test_xxxxxxxxxxxxx", // your Test Key ID
+      amount: payData.razorpayOrder.amount,
+      currency: "INR",
+      name: "Vendornest",
+      description: selectedProduct?.name,
+      order_id: payData.razorpayOrder.id,
+    };
+
+    RazorpayCheckout.open(options)
+      .then(async (paymentData) => {
+        // 4. Verify payment on backend
+        const verifyRes = await fetch(`${CONFIG.BASE_URL}/payment/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            razorpay_order_id: paymentData.razorpay_order_id,
+            razorpay_payment_id: paymentData.razorpay_payment_id,
+            razorpay_signature: paymentData.razorpay_signature,
+            orderId: order._id,
+          }),
+        });
+        const verifyData = await verifyRes.json();
+        if (verifyRes.ok && verifyData.success) {
+          setOrderConfirmed(true); // only show success AFTER payment verified
+        } else {
+          Alert.alert("Payment Error", "Payment could not be verified");
+        }
+      })
+      .catch(() => {
+        Alert.alert("Payment Cancelled", "You cancelled the payment");
+      });
+  } catch {
+    Alert.alert("Error", "Network error");
+  } finally {
+    setOrdering(false);
+  }
+};
 
   const filtered = products.filter((p) => {
     const matchesSearch =

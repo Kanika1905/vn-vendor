@@ -7,6 +7,7 @@ import {
 import { useCart } from "../context/cartContext";
 import { AuthContext } from "../context/authContext";
 import { COLORS, CONFIG } from "../constants";
+import RazorpayCheckout from "react-native-razorpay";
 
 export default function Cart({ navigation }) {
     const { cartItems, updateQuantity, removeFromCart, clearCart, totalPrice } = useCart();
@@ -75,24 +76,94 @@ export default function Cart({ navigation }) {
         return upiRegex.test(id);
     };
 
-    const handleUpiPay = () => {
-        setUpiError("");
-        if (!validateUpiId(upiId)) {
-            setUpiError("Enter a valid UPI ID (e.g. name@upi)");
-            return;
-        }
+    // const handleUpiPay = () => {
+    //     setUpiError("");
+    //     if (!validateUpiId(upiId)) {
+    //         setUpiError("Enter a valid UPI ID (e.g. name@upi)");
+    //         return;
+    //     }
+    //     setUpiStep("processing");
+    //     // Simulate payment processing (fake gateway)
+    //     setTimeout(() => {
+    //         setUpiStep("success");
+    //     }, 2500);
+    // };
+    const handleUpiPay = async () => {
         setUpiStep("processing");
-        // Simulate payment processing (fake gateway)
-        setTimeout(() => {
+        try {
+            // 1. Ask backend to create a Razorpay order for the cart total
+            const payRes = await fetch(`${CONFIG.BASE_URL}/payment/create-order`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ amount: totalPrice }),
+            });
+            const payData = await payRes.json();
+            if (!payRes.ok) {
+                setUpiStep("input");
+                Alert.alert("Error", "Could not start payment");
+                return;
+            }
+
+            // 2. Open Razorpay's own checkout screen
+            const options = {
+                key: "rzp_test_T3WWMcXHeoqiRN", // your Test Key ID
+                amount: payData.razorpayOrder.amount,
+                currency: "INR",
+                name: "Vendornest",
+                description: `${cartItems.length} item(s)`,
+                order_id: payData.razorpayOrder.id,
+            };
+
+            const paymentData = await RazorpayCheckout.open(options);
+
+            // 3. Payment succeeded on Razorpay's side — place the actual orders now
+            const orderPromises = cartItems.map((item) =>
+                fetch(`${CONFIG.BASE_URL}/vendor/orders`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                    body: JSON.stringify({ productId: item.product._id, quantity: item.quantity }),
+                }).then((r) => r.json())
+            );
+            const placedOrders = await Promise.all(orderPromises);
+
+            // 4. Verify payment + mark each created order as paid
+            await Promise.all(
+                placedOrders.map((res) =>
+                    fetch(`${CONFIG.BASE_URL}/payment/verify`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({
+                            razorpay_order_id: paymentData.razorpay_order_id,
+                            razorpay_payment_id: paymentData.razorpay_payment_id,
+                            razorpay_signature: paymentData.razorpay_signature,
+                            orderId: res.order._id,
+                        }),
+                    })
+                )
+            );
+
             setUpiStep("success");
-        }, 2500);
+        } catch (err) {
+            setUpiStep("input");
+            if (err?.code === 2 || err?.description) {
+                Alert.alert("Payment Cancelled", "You cancelled the payment");
+            } else {
+                Alert.alert("Error", "Payment failed. Try again.");
+            }
+        }
     };
+    // const handleUpiSuccess = () => {
+    //     setShowUpiModal(false);
+    //     setUpiStep("input");
+    //     setUpiId("");
+    //     placeOrder();
+    // };
 
     const handleUpiSuccess = () => {
         setShowUpiModal(false);
         setUpiStep("input");
-        setUpiId("");
-        placeOrder();
+        clearCart();
+        navigation.navigate("vendorTabs", { screen: "myOrders" });
     };
 
     const closeUpiModal = () => {
@@ -248,24 +319,7 @@ export default function Cart({ navigation }) {
                                     ))}
                                 </View>
 
-                                {/* Divider */}
-                                <View style={styles.dividerRow}>
-                                    <View style={styles.dividerLine} />
-                                    <Text style={styles.dividerText}>or enter UPI ID</Text>
-                                    <View style={styles.dividerLine} />
-                                </View>
-
-                                {/* UPI ID Input */}
-                                <TextInput
-                                    style={[styles.upiInput, upiError ? styles.upiInputError : null]}
-                                    placeholder="yourname@upi"
-                                    placeholderTextColor="#aaa"
-                                    value={upiId}
-                                    onChangeText={(t) => { setUpiId(t); setUpiError(""); }}
-                                    autoCapitalize="none"
-                                    keyboardType="email-address"
-                                />
-                                {upiError ? <Text style={styles.errorText}>{upiError}</Text> : null}
+                                
 
                                 <TouchableOpacity style={styles.payNowBtn} onPress={handleUpiPay}>
                                     <Text style={styles.payNowText}>Pay ₹{totalPrice}</Text>
@@ -299,10 +353,10 @@ export default function Cart({ navigation }) {
                                         <Text style={styles.successInfoKey}>UPI ID  </Text>
                                         <Text style={styles.successInfoVal}>{upiId}</Text>
                                     </Text>
-                                    <Text style={styles.successInfoRow}>
+                                    {/* <Text style={styles.successInfoRow}>
                                         <Text style={styles.successInfoKey}>Txn ID  </Text>
                                         <Text style={styles.successInfoVal}>TXN{Math.floor(Math.random() * 9000000000) + 1000000000}</Text>
-                                    </Text>
+                                    </Text> */}
                                     <Text style={styles.successInfoRow}>
                                         <Text style={styles.successInfoKey}>Status  </Text>
                                         <Text style={[styles.successInfoVal, { color: "#2E7D32" }]}>Success ✓</Text>
