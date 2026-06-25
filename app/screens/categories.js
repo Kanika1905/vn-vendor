@@ -1,176 +1,80 @@
 import React, { useEffect, useState } from "react";
-import {
-    View, Text, TouchableOpacity,
-    StyleSheet, ActivityIndicator, SectionList,
-} from "react-native";
-import { COLORS, CONFIG } from "../constants";
+import { View, Text, StyleSheet, SectionList, ActivityIndicator } from "react-native";
+import { CONFIG } from "../constants";
 import { useCart } from "../context/cartContext";
+import { colors, spacing, type } from "../theme";
+import { Screen, Header, CategoryTile, IconButton, EmptyState } from "../components/ui";
 
 export default function Categories({ navigation }) {
-    const [sections, setSections] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const { totalItems } = useCart();
+  const [sections, setSections] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { totalItems } = useCart();
 
-    useEffect(() => {
-        fetch(`${CONFIG.BASE_URL}/categories`)
-            .then((r) => r.json())
-            .then((data) => {
-                console.log("API response:", JSON.stringify(data)); // ← add this
-                const cats = data.categories || data || [];
-                console.log("Cats array:", cats.length, cats[0]); // ← and this
+  useEffect(() => {
+    fetch(`${CONFIG.BASE_URL}/categories`)
+      .then((r) => r.json())
+      .then((data) => {
+        const cats = data.categories || data || [];
+        // Group by `group` field → one grid row of tiles per section.
+        const groupMap = {};
+        cats.forEach((cat) => {
+          const group = cat.group || "Other";
+          (groupMap[group] = groupMap[group] || []).push(cat);
+        });
+        setSections(Object.entries(groupMap).map(([title, items]) => ({ title, data: [items] })));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
-                // Group by group field
-                const groupMap = {};
-                cats.forEach((cat) => {
-                    const group = cat.group || "Other";
-                    if (!groupMap[group]) groupMap[group] = [];
-                    groupMap[group].push(cat);
-                });
-
-                const built = Object.entries(groupMap).map(([group, items]) => ({
-                    title: group,
-                    data: [items], // single row per section for grid
-                }));
-                setSections(built);
-            })
-            .catch(() => { })
-            .finally(() => setLoading(false));
-    }, []);
-
-    const renderGrid = ({ item: cats }) => (
-        <View style={styles.grid}>
-            {cats.map((cat) => (
-                <TouchableOpacity
-                    key={cat._id}
-                    style={styles.catCard}
-                    onPress={() => navigation.navigate("categoryProducts", { categoryName: cat.name })} // will wire up later
-                >
-                    <View style={styles.emojiWrap}>
-                        <Text style={styles.emoji}>{cat.emoji || "📦"}</Text>
-                    </View>
-                    <Text style={styles.catName} numberOfLines={2}>{cat.name}</Text>
-                </TouchableOpacity>
-            ))}
+  const renderGrid = ({ item: cats }) => (
+    <View style={styles.grid}>
+      {cats.map((cat) => (
+        <View key={cat._id} style={styles.cell}>
+          <CategoryTile
+            variant="card"
+            name={cat.name}
+            emoji={cat.emoji}
+            image={cat.image}
+            onPress={() => navigation.navigate("categoryProducts", { categoryName: cat.name })}
+          />
         </View>
-    );
+      ))}
+    </View>
+  );
 
-    if (loading) {
-        return (
-            <View style={styles.centered}>
-                <ActivityIndicator color={COLORS.primary} size="large" />
-            </View>
-        );
-    }
+  return (
+    <Screen>
+      <Header
+        title="Categories"
+        subtitle="Browse all wholesale supplies"
+        large
+        right={totalItems > 0 ? <IconButton name="cart" badge={totalItems} onPress={() => navigation.navigate("Cart")} /> : null}
+      />
 
-    return (
-        <View style={styles.container}>
-            {/* Header */}
-            <View style={styles.header}>
-                <Text style={styles.headerTitle}>Categories</Text>
-                {totalItems > 0 && (
-                    <TouchableOpacity
-                        style={styles.cartBtn}
-                        onPress={() => navigation.navigate("Cart")}
-                    >
-                        <Text style={styles.cartBtnIcon}>🛒</Text>
-                        <View style={styles.cartBtnTextBlock}>
-                            <Text style={styles.cartBtnTitle}>Cart</Text>
-                            <Text style={styles.cartBtnSub}>{totalItems} item{totalItems > 1 ? "s" : ""}</Text>
-                        </View>
-                    </TouchableOpacity>
-                )}
-            </View>
-
-            <SectionList
-                sections={sections}
-                keyExtractor={(_, i) => String(i)}
-                renderItem={renderGrid}
-                renderSectionHeader={({ section: { title } }) => (
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>{title}</Text>
-                    </View>
-                )}
-                contentContainerStyle={{ paddingBottom: 40, paddingTop: 8 }}
-                showsVerticalScrollIndicator={false}
-            />
-        </View>
-    );
+      {loading ? (
+        <ActivityIndicator color={colors.primary} size="large" style={{ marginTop: 48 }} />
+      ) : (
+        <SectionList
+          sections={sections}
+          keyExtractor={(_, i) => String(i)}
+          renderItem={renderGrid}
+          renderSectionHeader={({ section: { title } }) => (
+            <Text style={styles.sectionTitle}>{title}</Text>
+          )}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          stickySectionHeadersEnabled={false}
+          ListEmptyComponent={<EmptyState title="No categories" subtitle="Categories will appear here." />}
+        />
+      )}
+    </Screen>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#F5F5F0" },
-    centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-
-    // Header
-    header: {
-        flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-        paddingHorizontal: 16, paddingTop: 52, paddingBottom: 14,
-        backgroundColor: "#fff", borderBottomWidth: 0.5, borderBottomColor: "#e0e0e0",
-    },
-    headerTitle: { fontSize: 20, fontWeight: "700", color: "#111" },
-
-    cartBtn: {
-        backgroundColor: COLORS.primary,
-        borderRadius: 24,
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 8,
-    },
-    cartBtnIcon: { fontSize: 18 },
-    cartBtnTextBlock: { flexDirection: "column" },
-    cartBtnTitle: { color: "#fff", fontWeight: "700", fontSize: 13, lineHeight: 16 },
-    cartBtnSub: { color: "#fff", fontSize: 11, lineHeight: 14 },
-
-    // Section header
-    sectionHeader: {
-        paddingHorizontal: 16,
-        paddingTop: 22,
-        paddingBottom: 12,
-        backgroundColor: "#F5F5F0",
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: "700",
-        color: "#111",
-    },
-
-    // Grid
-    grid: {
-        flexDirection: "row",
-        flexWrap: "wrap",
-        paddingHorizontal: 12,
-        gap: 10,
-    },
-
-    catCard: {
-        width: "30%",
-        backgroundColor: "#fff",
-        borderRadius: 14,
-        paddingVertical: 14,
-        paddingHorizontal: 8,
-        alignItems: "center",
-        borderWidth: 0.5,
-        borderColor: "#e8e8e8",
-        marginBottom: 6,
-        gap: 8,
-    },
-
-    emojiWrap: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: "#f0f0f0",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    emoji: { fontSize: 30 },
-    catName: {
-        fontSize: 11,
-        fontWeight: "600",
-        color: "#111",
-        textAlign: "center",
-        lineHeight: 15,
-    },
+  content: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl, paddingTop: spacing.sm },
+  sectionTitle: { ...type.section, fontSize: 15, marginTop: spacing.xl, marginBottom: spacing.md + 1 },
+  grid: { flexDirection: "row", flexWrap: "wrap", marginHorizontal: -spacing.xs - 1 },
+  cell: { width: "33.333%", paddingHorizontal: spacing.xs + 1, marginBottom: spacing.md - 1 },
 });

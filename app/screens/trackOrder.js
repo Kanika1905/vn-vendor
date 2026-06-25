@@ -1,166 +1,94 @@
-// app/screens/TrackOrder.js
+// app/screens/trackOrder.js
 import React from "react";
-import {
-  View, Text, StyleSheet, Image,
-  ScrollView, TouchableOpacity, SafeAreaView,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { colors, spacing, radius, sizes, weights, type } from "../theme";
+import { Screen, Header, Card, Thumb, Icon, Button } from "../components/ui";
 
-// Steps in order. Map your backend status → step index
+// Timeline steps; backend status maps to the active index.
 const STEPS = [
-  {
-    key: "ordered",
-    label: "Ordered",
-    icon: "🛒",
-    description: "Your order has been placed",
-  },
-  {
-    key: "accepted",
-    label: "Shipped",
-    icon: "✅",
-    description: "Your order had been Shipped",
-  },
-  {
-    key: "out_for_delivery",
-    label: "Out for Delivery",
-    icon: "🚚",
-    description: "Your order is on its way",
-  },
-  {
-    key: "delivered",
-    label: "Delivered",
-    icon: "📦",
-    description: "Order delivered successfully",
-  },
+  { key: "ordered", label: "Order placed", description: "Your order has been placed" },
+  { key: "accepted", label: "Confirmed by wholesaler", description: "Your order has been confirmed" },
+  { key: "out_for_delivery", label: "Out for delivery", description: "Your order is on its way" },
+  { key: "delivered", label: "Delivered", description: "Order delivered successfully" },
 ];
-
-// Which step index is "active" for each backend status?
-const STATUS_TO_STEP = {
-  pending:          0,   // Ordered
-  accepted:         1,   // Confirmed
-  out_for_delivery: 2,   // Out for Delivery
-  delivered:        3,   // Delivered
-};
+const STATUS_TO_STEP = { pending: 0, accepted: 1, out_for_delivery: 2, delivered: 3 };
 
 export default function TrackOrder() {
   const navigation = useNavigation();
-  const route = useRoute();
-  const { order } = route.params;
-
+  const { order } = useRoute().params;
   const activeStep = STATUS_TO_STEP[order.status] ?? 0;
-  const hasImage = order.product?.images?.[0];
+  const current = STEPS[activeStep];
 
-  const orderDate = new Date(order.createdAt).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const orderDate = new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
   return (
-    <SafeAreaView style={styles.safe}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={styles.backArrow}>‹</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Track Order</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <Screen>
+      <Header
+        title="Track Order"
+        subtitle={`Order #${String(order._id).slice(-6).toUpperCase()}`}
+        onBack={() => navigation.goBack()}
+      />
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-
-        {/* Product Card */}
-        <View style={styles.productCard}>
-          {hasImage ? (
-            <Image
-              source={{ uri: order.product.images[0] }}
-              style={styles.productImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={[styles.productImage, styles.imagePlaceholder]}>
-              <Text style={{ fontSize: 48 }}>📦</Text>
-            </View>
-          )}
-
-          <View style={styles.productInfo}>
-            <Text style={styles.productName} numberOfLines={2}>
-              {order.product?.name || "Product"}
-            </Text>
-            <Text style={styles.wholesalerName}>
-              🏪 {order.wholesaler?.businessName || "Wholesaler"}
-            </Text>
-
-            <View style={styles.metaRow}>
-              <View style={styles.metaChip}>
-                <Text style={styles.metaLabel}>Qty</Text>
-                <Text style={styles.metaValue}>{order.quantity} units</Text>
-              </View>
-              <View style={styles.metaDivider} />
-              <View style={styles.metaChip}>
-                <Text style={styles.metaLabel}>Total</Text>
-                <Text style={[styles.metaValue, { color: "#2E7D32" }]}>₹{order.totalPrice}</Text>
-              </View>
-              <View style={styles.metaDivider} />
-              <View style={styles.metaChip}>
-                <Text style={styles.metaLabel}>Placed</Text>
-                <Text style={styles.metaValue}>{orderDate}</Text>
-              </View>
-            </View>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Status banner */}
+        <View style={styles.banner}>
+          <View style={styles.bannerIcon}>
+            <Icon name={order.status === "delivered" ? "tick" : "delivery"} size={24} color={colors.inkInverse} />
+          </View>
+          <View>
+            <Text style={styles.bannerTitle}>{current.label}</Text>
+            <Text style={styles.bannerSub}>{current.description}</Text>
           </View>
         </View>
 
-        {/* Tracking Timeline */}
-        <View style={styles.timelineCard}>
-          <Text style={styles.timelineTitle}>Order Status</Text>
+        {/* Live map entry */}
+        <Button
+          title="View live map"
+          iconLeft="location"
+          onPress={() => navigation.navigate("liveTrack", { order })}
+          style={styles.liveBtn}
+        />
 
+        {/* Product summary */}
+        <Card style={styles.product} padded>
+          <Thumb uri={order.product?.images?.[0]} emoji="📦" colorKey={order.product?.name} size={54} rounded={radius.lg} />
+          <View style={styles.productInfo}>
+            <Text style={type.title} numberOfLines={2}>
+              {order.product?.name} × {order.quantity}
+            </Text>
+            <Text style={styles.placed}>Placed {orderDate} · {order.wholesaler?.businessName || "Wholesaler"}</Text>
+          </View>
+          <Text style={styles.price}>₹{order.totalPrice}</Text>
+        </Card>
+
+        {/* Timeline */}
+        <Text style={[type.section, styles.timelineHeading]}>Delivery progress</Text>
+        <View>
           {STEPS.map((step, index) => {
-            const isCompleted = index <= activeStep;
-            const isActive = index === activeStep;
+            const completed = index <= activeStep;
+            const active = index === activeStep;
             const isLast = index === STEPS.length - 1;
-
             return (
               <View key={step.key} style={styles.stepRow}>
-                {/* Left column: icon + connector line */}
                 <View style={styles.stepLeft}>
-                  <View style={[
-                    styles.stepCircle,
-                    isCompleted && styles.stepCircleCompleted,
-                    isActive && styles.stepCircleActive,
-                  ]}>
-                    {isCompleted ? (
-                      <Text style={styles.stepIcon}>{step.icon}</Text>
+                  <View style={[styles.node, completed && styles.nodeDone, active && styles.nodeActive]}>
+                    {completed && !active ? (
+                      <Icon name="tick" size={15} color={colors.inkInverse} />
+                    ) : active ? (
+                      <View style={styles.nodeActiveDot} />
                     ) : (
-                      <View style={styles.stepDot} />
+                      <View style={styles.nodeIdleDot} />
                     )}
                   </View>
-                  {/* Connector line — skip for last step */}
-                  {!isLast && (
-                    <View style={[
-                      styles.connector,
-                      index < activeStep && styles.connectorCompleted,
-                    ]} />
-                  )}
+                  {!isLast && <View style={[styles.connector, index < activeStep && styles.connectorDone]} />}
                 </View>
-
-                {/* Right column: label + description */}
-                <View style={styles.stepContent}>
-                  <Text style={[
-                    styles.stepLabel,
-                    isCompleted && styles.stepLabelCompleted,
-                    isActive && styles.stepLabelActive,
-                  ]}>
-                    {step.label}
-                  </Text>
-                  <Text style={[
-                    styles.stepDesc,
-                    isActive && styles.stepDescActive,
-                  ]}>
-                    {step.description}
-                  </Text>
-                  {isActive && (
-                    <View style={styles.activeTag}>
-                      <Text style={styles.activeTagText}>Current Status</Text>
+                <View style={styles.stepBody}>
+                  <Text style={[styles.stepLabel, active && styles.stepLabelActive]}>{step.label}</Text>
+                  <Text style={styles.stepDesc}>{step.description}</Text>
+                  {active && (
+                    <View style={styles.currentTag}>
+                      <Text style={styles.currentTagText}>Current status</Text>
                     </View>
                   )}
                 </View>
@@ -169,179 +97,43 @@ export default function TrackOrder() {
           })}
         </View>
 
-        {/* Order ID footer */}
         <Text style={styles.orderId}>Order ID: {order._id}</Text>
-
       </ScrollView>
-    </SafeAreaView>
+    </Screen>
   );
 }
 
-const ACTIVE_GREEN = "#2E7D32";
-const LIGHT_GREEN  = "#E8F5E9";
-const GREY         = "#C5C5C5";
-const GREY_BG      = "#F0F0F0";
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#F5F5F0" },
+  content: { padding: spacing.xl, paddingBottom: spacing.xxxl },
+  liveBtn: { marginBottom: spacing.xl },
 
-  /* Header */
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    backgroundColor: "#fff",
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#e0e0e0",
-  },
-  backBtn: {
-    width: 40, height: 40,
-    alignItems: "center", justifyContent: "center",
-    backgroundColor: "#f5f5f5",
-    borderRadius: 20,
-  },
-  backArrow: { fontSize: 26, color: "#111", lineHeight: 30 },
-  headerTitle: { fontSize: 17, fontWeight: "700", color: "#111" },
+  banner: { flexDirection: "row", alignItems: "center", gap: spacing.md + 2, backgroundColor: colors.primarySoft, borderRadius: radius.xxl + 2, padding: spacing.lg, marginBottom: spacing.xl },
+  bannerIcon: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  bannerTitle: { fontSize: sizes.lg + 1, fontWeight: weights.heavy, color: colors.primaryDeep },
+  bannerSub: { fontSize: sizes.sm, fontWeight: weights.semibold, color: "#3E7B57", marginTop: 2 },
 
-  scroll: { padding: 16, paddingBottom: 40 },
+  product: { flexDirection: "row", alignItems: "center", gap: spacing.md + 1, marginBottom: spacing.xl },
+  productInfo: { flex: 1, minWidth: 0 },
+  placed: { fontSize: sizes.sm, fontWeight: weights.semibold, color: colors.inkSubtle, marginTop: 3 },
+  price: { fontSize: sizes.lg + 1, fontWeight: weights.heavy, color: colors.primaryDark },
 
-  /* Product Card */
-  productCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    overflow: "hidden",
-    borderWidth: 0.5,
-    borderColor: "#e8e8e8",
-    marginBottom: 16,
-  },
-  productImage: {
-    width: "100%",
-    height: 200,
-  },
-  imagePlaceholder: {
-    backgroundColor: "#edf7ed",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  productInfo: { padding: 16 },
-  productName: { fontSize: 17, fontWeight: "700", color: "#111", marginBottom: 4 },
-  wholesalerName: { fontSize: 13, color: "#888", marginBottom: 14 },
+  timelineHeading: { marginBottom: spacing.lg },
+  stepRow: { flexDirection: "row", gap: spacing.lg },
+  stepLeft: { alignItems: "center", width: 32 },
+  node: { width: 32, height: 32, borderRadius: 16, backgroundColor: "#F0F3F0", borderWidth: 2, borderColor: "#E1E8E2", alignItems: "center", justifyContent: "center" },
+  nodeDone: { backgroundColor: colors.primary, borderColor: colors.primary },
+  nodeActive: { backgroundColor: colors.primary, borderColor: colors.primary, shadowColor: colors.primary, shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 0 }, elevation: 4 },
+  nodeActiveDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: colors.inkInverse },
+  nodeIdleDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: "#C7D1C9" },
+  connector: { width: 3, flex: 1, minHeight: 28, backgroundColor: "#E1E8E2", marginVertical: 2 },
+  connectorDone: { backgroundColor: colors.primary },
 
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F9F9F9",
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 6,
-  },
-  metaChip: { flex: 1, alignItems: "center" },
-  metaLabel: { fontSize: 11, color: "#aaa", fontWeight: "500", marginBottom: 2 },
-  metaValue: { fontSize: 13, fontWeight: "700", color: "#111" },
-  metaDivider: { width: 0.5, height: 28, backgroundColor: "#e0e0e0" },
+  stepBody: { flex: 1, paddingBottom: spacing.xl },
+  stepLabel: { fontSize: sizes.md + 0.5, fontWeight: weights.bold, color: colors.ink },
+  stepLabelActive: { color: colors.primary, fontWeight: weights.heavy },
+  stepDesc: { fontSize: sizes.sm, fontWeight: weights.medium, color: colors.inkSubtle, marginTop: 2 },
+  currentTag: { alignSelf: "flex-start", backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: 4, marginTop: spacing.sm },
+  currentTagText: { fontSize: sizes.xs, fontWeight: weights.heavy, color: colors.primaryDark },
 
-  /* Timeline Card */
-  timelineCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 0.5,
-    borderColor: "#e8e8e8",
-    marginBottom: 16,
-  },
-  timelineTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#111",
-    marginBottom: 20,
-  },
-
-  stepRow: {
-    flexDirection: "row",
-    minHeight: 72,
-  },
-
-  /* Left: icon circle + connector */
-  stepLeft: {
-    alignItems: "center",
-    width: 48,
-  },
-  stepCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: GREY_BG,
-    borderWidth: 2,
-    borderColor: GREY,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepCircleCompleted: {
-    backgroundColor: LIGHT_GREEN,
-    borderColor: ACTIVE_GREEN,
-  },
-  stepCircleActive: {
-    // extra ring effect via shadow
-    shadowColor: ACTIVE_GREEN,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.35,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  stepIcon: { fontSize: 18 },
-  stepDot: {
-    width: 10, height: 10,
-    borderRadius: 5,
-    backgroundColor: GREY,
-  },
-
-  connector: {
-    flex: 1,
-    width: 2,
-    backgroundColor: GREY_BG,
-    marginTop: 2,
-    marginBottom: 2,
-    borderRadius: 2,
-  },
-  connectorCompleted: {
-    backgroundColor: ACTIVE_GREEN,
-    opacity: 0.4,
-  },
-
-  /* Right: text */
-  stepContent: {
-    flex: 1,
-    paddingLeft: 14,
-    paddingBottom: 20,
-    paddingTop: 8,
-  },
-  stepLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#bbb",
-    marginBottom: 2,
-  },
-  stepLabelCompleted: { color: "#444" },
-  stepLabelActive: { color: ACTIVE_GREEN, fontSize: 15 },
-  stepDesc: { fontSize: 12, color: "#ccc" },
-  stepDescActive: { color: "#666" },
-  activeTag: {
-    alignSelf: "flex-start",
-    marginTop: 6,
-    backgroundColor: LIGHT_GREEN,
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-  },
-  activeTagText: { fontSize: 11, fontWeight: "700", color: ACTIVE_GREEN },
-
-  /* Footer */
-  orderId: {
-    textAlign: "center",
-    fontSize: 11,
-    color: "#bbb",
-    fontWeight: "500",
-  },
+  orderId: { fontSize: sizes.sm, fontWeight: weights.semibold, color: colors.inkFaint, textAlign: "center", marginTop: spacing.lg },
 });

@@ -1,27 +1,28 @@
 // app/screens/myOrders.js
-import React, { useState, useContext, useCallback } from "react";
-import {
-  View, Text, FlatList, StyleSheet,
-  ActivityIndicator, Alert, RefreshControl, Image, TouchableOpacity,
-} from "react-native";
+import React, { useState, useContext, useCallback, useMemo } from "react";
+import { View, Text, FlatList, StyleSheet, ActivityIndicator, Alert, RefreshControl, Pressable } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import { COLORS, FONTS, CONFIG } from "../constants";
+import { CONFIG } from "../constants";
 import { AuthContext } from "../context/authContext";
+import { useCart } from "../context/cartContext";
+import { colors, spacing, radius, sizes, weights } from "../theme";
+import { Screen, Header, Card, Thumb, Badge, statusFor, Chips, EmptyState, Icon } from "../components/ui";
 
-const STATUS_CONFIG = {
-  pending:          { color: "#F59E0B", bg: "#FEF3C7", label: "Pending" },
-  accepted:         { color: "#3B82F6", bg: "#EFF6FF", label: "Accepted" },
-  out_for_delivery: { color: "#8B5CF6", bg: "#F5F3FF", label: "Out for Delivery" },
-  delivered:        { color: "#10B981", bg: "#ECFDF5", label: "Delivered" },
-  cancelled:        { color: "#EF4444", bg: "#FEF2F2", label: "Cancelled" },
-};
+const FILTERS = [
+  { label: "All", value: "all" },
+  { label: "Active", value: "active" },
+  { label: "Delivered", value: "delivered" },
+];
+const ACTIVE_STATES = ["pending", "accepted", "out_for_delivery"];
 
 export default function MyOrders() {
   const { token } = useContext(AuthContext);
+  const { addToCart } = useCart();
   const navigation = useNavigation();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState("all");
 
   const fetchOrders = async () => {
     try {
@@ -46,182 +47,115 @@ export default function MyOrders() {
     }, [])
   );
 
-  const renderOrder = ({ item }) => {
-    const status = STATUS_CONFIG[item.status] || STATUS_CONFIG.pending;
-    const hasImage = item.product?.images?.[0];
+  const visible = useMemo(() => {
+    if (filter === "active") return orders.filter((o) => ACTIVE_STATES.includes(o.status));
+    if (filter === "delivered") return orders.filter((o) => o.status === "delivered");
+    return orders;
+  }, [orders, filter]);
 
-    // Don't show Track Order for cancelled orders
+  const reorder = (product) => {
+    if (!product) return;
+    addToCart(product);
+    Alert.alert("Added to cart", `${product.name} added to your cart.`);
+  };
+
+  const renderOrder = ({ item }) => {
+    const st = statusFor(item.status);
     const isCancelled = item.status === "cancelled";
+    const isDelivered = item.status === "delivered";
+    const date = new Date(item.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 
     return (
-      <View style={styles.card}>
-        <View style={styles.row}>
-          {/* Thumbnail */}
-          {hasImage ? (
-            <Image source={{ uri: item.product.images[0] }} style={styles.thumb} resizeMode="cover" />
-          ) : (
-            <View style={[styles.thumb, styles.thumbPlaceholder]}>
-              <Text style={{ fontSize: 24 }}>📦</Text>
-            </View>
-          )}
-
-          {/* Info */}
+      <Card padded={false} style={styles.card}>
+        <View style={styles.top}>
+          <Thumb uri={item.product?.images?.[0]} emoji="📦" colorKey={item.product?.name} size={50} rounded={radius.md} />
           <View style={styles.info}>
-            <Text style={styles.name} numberOfLines={1}>{item.product?.name}</Text>
-            <Text style={styles.wholesaler}>
-              🏪 {item.wholesaler?.businessName || "Wholesaler"}
+            <Text style={type_title} numberOfLines={1}>
+              {item.product?.name} × {item.quantity}
             </Text>
-            <Text style={styles.unit}>{item.quantity} units</Text>
-            <Text style={styles.price}>₹{item.totalPrice}</Text>
-          </View>
-
-          {/* Right side — status + date */}
-          <View style={styles.rightCol}>
-            <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
-              <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
-            </View>
-            <Text style={styles.date}>
-              {new Date(item.createdAt).toLocaleDateString("en-IN", {
-                day: "numeric", month: "short",
-              })}
+            <Text style={styles.meta} numberOfLines={1}>
+              {item.wholesaler?.businessName || "Wholesaler"} · {date}
             </Text>
           </View>
+          <Badge label={st.label} fg={st.fg} bg={st.bg} />
         </View>
 
-        {/* Divider */}
-        {!isCancelled && <View style={styles.divider} />}
-
-        {/* Track Order Button */}
         {!isCancelled && (
-          <TouchableOpacity
-            style={styles.trackBtn}
-            activeOpacity={0.75}
-            onPress={() =>
-              navigation.getParent()?.navigate("trackOrder", {
-                order: item,
-              })
-            }
-          >
-            <Text style={styles.trackBtnIcon}>🚚</Text>
-            <Text style={styles.trackBtnText}>Track Order</Text>
-            <Text style={styles.trackBtnArrow}>›</Text>
-          </TouchableOpacity>
+          <>
+            <View style={styles.divider} />
+            <View style={styles.footer}>
+              <Text style={styles.price}>₹{item.totalPrice}</Text>
+              {isDelivered ? (
+                <Pressable style={styles.actionGhost} onPress={() => reorder(item.product)}>
+                  <Text style={styles.actionGhostText}>Reorder</Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  style={styles.action}
+                  onPress={() => navigation.getParent()?.navigate("trackOrder", { order: item })}
+                >
+                  <Text style={styles.actionText}>Track Order</Text>
+                  <Icon name="next" size={15} color={colors.inkInverse} />
+                </Pressable>
+              )}
+            </View>
+          </>
         )}
-      </View>
+      </Card>
     );
   };
 
-  if (loading) return (
-    <View style={styles.centered}>
-      <ActivityIndicator color={COLORS.primary} size="large" />
-    </View>
-  );
+  if (loading) {
+    return (
+      <Screen>
+        <Header title="My Orders" large />
+        <ActivityIndicator color={colors.primary} size="large" style={{ marginTop: 48 }} />
+      </Screen>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Orders</Text>
-        <Text style={styles.headerSub}>
-          {orders.length} order{orders.length !== 1 ? "s" : ""}
-        </Text>
+    <Screen>
+      <Header title="My Orders" large />
+      <View style={styles.filters}>
+        <Chips items={FILTERS} value={filter} onChange={setFilter} />
       </View>
 
       <FlatList
-        data={orders}
+        data={visible}
         keyExtractor={(item) => item._id}
         renderItem={renderOrder}
-        contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
-        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+        ItemSeparatorComponent={() => <View style={{ height: spacing.md + 1 }} />}
+        contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); fetchOrders(); }}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchOrders(); }} tintColor={colors.primary} />
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📦</Text>
-            <Text style={styles.emptyTitle}>No orders yet</Text>
-            <Text style={styles.emptySubtitle}>
-              Your orders will appear here once you place them
-            </Text>
-          </View>
+          <EmptyState title="No orders yet" subtitle="Your orders will appear here once you place them." />
         }
       />
-    </View>
+    </Screen>
   );
 }
 
+const type_title = { fontSize: sizes.md + 0.5, fontWeight: weights.bold, color: colors.ink };
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F5F5F0" },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
+  filters: { backgroundColor: colors.surface, paddingHorizontal: spacing.xl, paddingBottom: spacing.lg },
+  list: { padding: spacing.xl, paddingBottom: spacing.xxxl },
 
-  header: {
-    paddingHorizontal: 20, paddingTop: 56, paddingBottom: 16,
-    backgroundColor: "#fff",
-    borderBottomWidth: 0.5, borderBottomColor: "#e0e0e0",
-    flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end",
-  },
-  headerTitle: { fontSize: 22, fontWeight: "700", color: "#111" },
-  headerSub: { fontSize: 13, color: "#888", fontWeight: "500" },
+  card: { padding: spacing.lg, borderRadius: radius.xxl + 2 },
+  top: { flexDirection: "row", alignItems: "center", gap: spacing.md + 1, marginBottom: spacing.md + 1 },
+  info: { flex: 1, minWidth: 0 },
+  meta: { fontSize: sizes.sm, fontWeight: weights.semibold, color: colors.inkSubtle, marginTop: 2 },
 
-  // Card wraps the row + track button
-  card: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    borderWidth: 0.5,
-    borderColor: "#e8e8e8",
-    overflow: "hidden",
-  },
+  divider: { height: 1, backgroundColor: colors.divider, marginBottom: spacing.md + 1 },
+  footer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  price: { fontSize: sizes.xl, fontWeight: weights.heavy, color: colors.primaryDark },
 
-  // Product row (same as before)
-  row: {
-    flexDirection: "row", alignItems: "center",
-    padding: 12, gap: 12,
-  },
-  thumb: { width: 64, height: 64, borderRadius: 10 },
-  thumbPlaceholder: {
-    backgroundColor: "#edf7ed", alignItems: "center", justifyContent: "center",
-  },
-  info: { flex: 1 },
-  name: { fontSize: 14, fontWeight: "600", color: "#111", marginBottom: 2 },
-  wholesaler: { fontSize: 12, color: "#888", marginBottom: 2 },
-  unit: { fontSize: 12, color: "#888", marginBottom: 4 },
-  price: { fontSize: 15, fontWeight: "700", color: "#2E7D32" },
-
-  rightCol: { alignItems: "flex-end", gap: 8 },
-  statusBadge: { borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  statusText: { fontSize: 11, fontWeight: "700" },
-  date: { fontSize: 11, color: "#aaa", fontWeight: "500" },
-
-  divider: { height: 0.5, backgroundColor: "#e8e8e8", marginHorizontal: 12 },
-
-  // Track Order button — sits below divider inside the card
-  trackBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 6,
-  },
-  trackBtnIcon: { fontSize: 14 },
-  trackBtnText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#2E7D32",
-    flex: 1,
-  },
-  trackBtnArrow: {
-    fontSize: 18,
-    color: "#2E7D32",
-    fontWeight: "600",
-    lineHeight: 20,
-  },
-
-  emptyContainer: { alignItems: "center", marginTop: 80 },
-  emptyIcon: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: { fontSize: 16, fontWeight: "700", color: "#111", marginBottom: 6 },
-  emptySubtitle: {
-    fontSize: 13, color: "#888", textAlign: "center", paddingHorizontal: 40,
-  },
+  action: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.primary, paddingHorizontal: spacing.lg, paddingVertical: 9, borderRadius: radius.md },
+  actionText: { fontSize: sizes.sm + 0.5, fontWeight: weights.heavy, color: colors.inkInverse },
+  actionGhost: { backgroundColor: colors.primaryTint, borderWidth: 1.5, borderColor: "#CFE6D8", paddingHorizontal: spacing.lg, paddingVertical: 8, borderRadius: radius.md },
+  actionGhostText: { fontSize: sizes.sm + 0.5, fontWeight: weights.heavy, color: colors.primaryDark },
 });
