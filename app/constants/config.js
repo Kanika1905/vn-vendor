@@ -1,7 +1,7 @@
 // // app/constants/config.js
 
 // // 🔥 Base API URL (change only here)
-// export const BASE_URL = "http://192.168.0.101:5000/api"; 
+// export const BASE_URL = "http://192.168.0.101:3000/api"; 
 // // Replace with your backend LAN/IP or hosted URL
 
 // // 🔥 Complete API Route Mapping
@@ -21,7 +21,7 @@
 //   "Content-Type": "application/json",
 // };
 const CONFIG = {
-  BASE_URL: "http://192.168.1.6:5000/api", // 🔁 Change to your local IP
+  BASE_URL: "http://192.168.1.55:3000/api", // 🔁 Change to your local IP
 };
 
 export default CONFIG;
