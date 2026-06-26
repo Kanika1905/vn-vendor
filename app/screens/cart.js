@@ -48,24 +48,51 @@ export default function Cart({ navigation }) {
     ]);
   };
 
-  // ── Online / UPI (Razorpay). Backend contract unchanged. ──
+  // ── Online / UPI (Razorpay) ──
+  // Helper: fetch with a hard timeout so we never sit on "processing" forever.
+  const fetchWithTimeout = async (url, options, ms = 15000) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      return res;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
   const handleUpiPay = async () => {
     setUpiStep("processing");
     try {
-      const payRes = await fetch(`${CONFIG.BASE_URL}/payment/create-order`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ amount: totalPrice }),
-      });
-      const payData = await payRes.json();
+      // Step 1: Create Razorpay order on backend
+      let payRes, payData;
+      try {
+        payRes = await fetchWithTimeout(`${CONFIG.BASE_URL}/payment/create-order`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ amount: totalPrice }),
+        });
+        payData = await payRes.json();
+      } catch (networkErr) {
+        console.error("create-order network error:", networkErr);
+        setUpiStep("input");
+        Alert.alert(
+          "Connection issue",
+          networkErr.name === "AbortError"
+            ? "The server took too long to respond. Check your connection and try again."
+            : "Could not reach the server. Check your connection and try again."
+        );
+        return;
+      }
       if (!payRes.ok) {
         setUpiStep("input");
-        Alert.alert("Error", "Could not start payment");
+        Alert.alert("Error", "Could not start payment: " + (payData?.message || "Unknown error"));
         return;
       }
 
+      // Step 2: Open Razorpay checkout
       const options = {
-        key: "rzp_test_T3WWMcXHeoqiRN",
+        key: process.env.EXPO_PUBLIC_RAZORPAY_KEY,
         amount: payData.razorpayOrder.amount,
         currency: "INR",
         name: "VendorNest",
@@ -73,38 +100,123 @@ export default function Cart({ navigation }) {
         order_id: payData.razorpayOrder.id,
       };
 
-      const paymentData = await RazorpayCheckout.open(options);
+      let paymentData;
+      try {
+        paymentData = await RazorpayCheckout.open(options);
+      } catch (razorpayErr) {
+        setUpiStep("input");
+        if (razorpayErr?.code === 2) {
+          Alert.alert("Payment cancelled", "You cancelled the payment");
+        } else {
+          Alert.alert("Payment failed", razorpayErr?.description || "Please try again");
+        }
+        return;
+      }
 
-      const placedOrders = await Promise.all(
-        cartItems.map((item) =>
-          fetch(`${CONFIG.BASE_URL}/vendor/orders`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ productId: item.product._id, quantity: item.quantity }),
-          }).then((r) => r.json())
-        )
-      );
+      // Step 3: Verify the Razorpay signature only — no Order exists yet, no DB write.
+      let verifyRes, verifyData;
+      try {
+        verifyRes = await fetchWithTimeout(`${CONFIG.BASE_URL}/payment/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            razorpay_order_id: paymentData.razorpay_order_id,
+            razorpay_payment_id: paymentData.razorpay_payment_id,
+            razorpay_signature: paymentData.razorpay_signature,
+          }),
+        });
+        verifyData = await verifyRes.json();
+      } catch (networkErr) {
+        console.error("verify network error:", networkErr);
+        setUpiStep("input");
+        Alert.alert(
+          "Connection issue",
+          "Payment may have gone through, but we couldn't confirm it. Check My Orders before retrying, to avoid a double charge."
+        );
+        return;
+      }
+      if (!verifyRes.ok || !verifyData.success) {
+        // This is almost always a key_id/key_secret mismatch between the
+        // frontend's EXPO_PUBLIC_RAZORPAY_KEY and the backend's RAZORPAY_KEY_SECRET.
+        console.error("Signature verification failed:", verifyData);
+        setUpiStep("input");
+        Alert.alert(
+          "Payment verification failed",
+          verifyData?.message || "Signature mismatch. Please try again or contact support."
+        );
+        return;
+      }
 
-      await Promise.all(
-        placedOrders.map((res) =>
-          fetch(`${CONFIG.BASE_URL}/payment/verify`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify({
-              razorpay_order_id: paymentData.razorpay_order_id,
-              razorpay_payment_id: paymentData.razorpay_payment_id,
-              razorpay_signature: paymentData.razorpay_signature,
-              orderId: res.order._id,
-            }),
-          })
-        )
-      );
+      // Step 4: Signature confirmed genuine — now create the orders.
+      let placedOrders;
+      try {
+        const orderResponses = await Promise.all(
+          cartItems.map((item) =>
+            fetchWithTimeout(`${CONFIG.BASE_URL}/vendor/orders`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ productId: item.product._id, quantity: item.quantity }),
+            })
+          )
+        );
+        placedOrders = await Promise.all(orderResponses.map((r) => r.json()));
+        const failedOrder = orderResponses.find((r) => !r.ok);
+        if (failedOrder) {
+          throw new Error("One or more orders failed to be created");
+        }
+      } catch (orderErr) {
+        console.error("Order creation after payment failed:", orderErr);
+        setUpiStep("input");
+        Alert.alert(
+          "Payment succeeded, order failed",
+          "Your payment went through but we couldn't create the order. Please contact support with this reference: " +
+          paymentData.razorpay_payment_id
+        );
+        return;
+      }
+
+      // Step 5: Attach payment details to each created order, and check every result.
+      try {
+        const attachResponses = await Promise.all(
+          placedOrders.map((res) =>
+            fetchWithTimeout(`${CONFIG.BASE_URL}/payment/attach`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({
+                razorpay_order_id: paymentData.razorpay_order_id,
+                razorpay_payment_id: paymentData.razorpay_payment_id,
+                razorpay_signature: paymentData.razorpay_signature,
+                orderId: res.order._id,
+              }),
+            })
+          )
+        );
+        const failedAttach = attachResponses.find((r) => !r.ok);
+        if (failedAttach) {
+          const body = await failedAttach.json().catch(() => ({}));
+          console.error("attach-payment failed:", body);
+          // Orders exist and Razorpay payment is genuine; this is a "paid but
+          // unmarked" state worth flagging rather than telling the user payment failed.
+          Alert.alert(
+            "Order placed, payment status pending",
+            "Your order was placed and payment was received, but we couldn't update its payment status. Support reference: " +
+            paymentData.razorpay_payment_id
+          );
+        }
+      } catch (attachErr) {
+        console.error("attach-payment network error:", attachErr);
+        Alert.alert(
+          "Order placed, payment status pending",
+          "Your order was placed and payment was received, but we couldn't confirm the payment status due to a connection issue. Support reference: " +
+          paymentData.razorpay_payment_id
+        );
+      }
 
       setUpiStep("success");
     } catch (err) {
       setUpiStep("input");
-      if (err?.code === 2 || err?.description) Alert.alert("Payment cancelled", "You cancelled the payment");
-      else Alert.alert("Error", "Payment failed. Try again.");
+      console.error("Payment error:", err);
+      Alert.alert("Error", "Payment failed. Try again.");
     }
   };
 
