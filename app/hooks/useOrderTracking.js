@@ -10,8 +10,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { fetchTrack, trackSocketUrl } from "../services/tracking";
 
-const POLL_MS = 5000;
-const MAX_BACKOFF_MS = 15000;
+const POLL_MS = 3000;
+const MAX_BACKOFF_MS = 13000;
 
 export default function useOrderTracking(orderId, token) {
   const [status, setStatus] = useState("preparing");

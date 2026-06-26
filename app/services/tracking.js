@@ -3,7 +3,7 @@
 // Bearer-token flow (no new auth).
 import { CONFIG } from "../constants";
 
-// CONFIG.BASE_URL looks like "http://192.168.1.6:5000/api"
+// CONFIG.BASE_URL looks like "http://192.168.1.55:3000/api"
 const API_ROOT = CONFIG.BASE_URL.replace(/\/+$/, "");
 const SERVER_ROOT = API_ROOT.replace(/\/api$/, ""); // strip the /api suffix for WS
 
